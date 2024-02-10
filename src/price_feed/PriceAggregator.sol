@@ -57,6 +57,7 @@ contract PriceAggregator is IPriceAggregator, Ownable
 		else if ( priceFeedNum == 3 )
 			priceFeed3 = newPriceFeed;
 
+        // @audit medium : block-timestamp can be manupulated by the miners , led the victim to set wrong price feed. 
 		priceFeedModificationCooldownExpiration = block.timestamp + priceFeedModificationCooldown;
 		emit PriceFeedSet(priceFeedNum, newPriceFeed);
 		}
@@ -65,6 +66,7 @@ contract PriceAggregator is IPriceAggregator, Ownable
 	function changeMaximumPriceFeedPercentDifferenceTimes1000(bool increase) public onlyOwner
 		{
         if (increase)
+		   // @audit-info : why are you using magic no. ? 
             {
             if (maximumPriceFeedPercentDifferenceTimes1000 < 7000)
                 maximumPriceFeedPercentDifferenceTimes1000 += 500;
@@ -98,6 +100,8 @@ contract PriceAggregator is IPriceAggregator, Ownable
 
 	function _absoluteDifference( uint256 x, uint256 y ) internal pure returns (uint256)
 		{
+
+		// @audit-info : use safemath library 
 		if ( x > y )
 			return x - y;
 

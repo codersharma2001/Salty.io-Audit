@@ -18,7 +18,8 @@ contract InitialDistribution is IInitialDistribution
 
 	uint256 constant public MILLION_ETHER = 1000000 ether;
 
-
+    
+	// @audit-info : lack of emitting events , even after the significant state changes 
    	ISalt immutable public salt;
 	IPoolsConfig immutable public poolsConfig;
    	IEmissions immutable public emissions;
@@ -47,13 +48,17 @@ contract InitialDistribution is IInitialDistribution
 
 
     // Called when the BootstrapBallot is approved by the initial airdrop recipients.
+
+    // @audit high distributionApproved is external and can be called by anyone, but it is only callable by the BootstrapBallot contract , its crucial to ensure that the BootstrapBallot contract itself has the proper access control 
     function distributionApproved() external
     	{
     	require( msg.sender == address(bootstrapBallot), "InitialDistribution.distributionApproved can only be called from the BootstrapBallot contract" );
+		// @audit : low , token transfer amount , its crucial to ensure that the contract indeed holds this amount of tokens before proceeding with the distribution to prevent any unintended behavior.
 		require( salt.balanceOf(address(this)) == 100 * MILLION_ETHER, "SALT has already been sent from the contract" );
 
     	// 52 million		Emissions
 		salt.safeTransfer( address(emissions), 52 * MILLION_ETHER );
+		// @audit-info : magic numbers , its good practice to define these no. as constants . 
 
 	    // 25 million		DAO Reserve Vesting Wallet
 		salt.safeTransfer( address(daoVestingWallet), 25 * MILLION_ETHER );
@@ -69,6 +74,8 @@ contract InitialDistribution is IInitialDistribution
 
 	    // 5 million		Liquidity Bootstrapping
 	    // 3 million		Staking Bootstrapping
+
+		// @audit medium transfers token to multiple external contracts , if any of contract are malicious or compromised , they could potentially call-back into this contract and cause a re-entrancy attack  
 		salt.safeTransfer( address(saltRewards), 8 * MILLION_ETHER );
 		saltRewards.sendInitialSaltRewards(5 * MILLION_ETHER, poolIDs );
     	}

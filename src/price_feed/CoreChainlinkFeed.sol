@@ -28,7 +28,8 @@ contract CoreChainlinkFeed is IPriceFeed
 	function latestChainlinkPrice(AggregatorV3Interface chainlinkFeed) public view returns (uint256)
 		{
 		int256 price = 0;
-
+        // @audit medium : Usage of deprecated Chainlink functions like latestRoundData() might return stale or incorrect data, affecting the integrity of smart contracts.
+		// SEVERITY : HIGH
 		try chainlinkFeed.latestRoundData()
 		returns (
 			uint80, // _roundID
@@ -40,6 +41,8 @@ contract CoreChainlinkFeed is IPriceFeed
 			{
 			// Make sure that the Chainlink price update has occurred within its 60 minute heartbeat
 			// https://docs.chain.link/data-feeds#check-the-timestamp-of-the-latest-answer
+			// blocktimestamp may be manipulated by miners, but this is not a security issue as the price is not used for any critical calculations
+
 			uint256 answerDelay = block.timestamp - _answerTimestamp;
 
 			if ( answerDelay <= MAX_ANSWER_DELAY )
@@ -56,7 +59,7 @@ contract CoreChainlinkFeed is IPriceFeed
 			return 0;
 
 		// Convert the 8 decimals from the Chainlink price to 18 decimals
-		return uint256(price) * 10**10;
+		return uint256(price) * 10**10; // magic no. ??
 		}
 
 

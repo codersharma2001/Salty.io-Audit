@@ -50,8 +50,9 @@ contract AccessManager is IAccessManager
 	// Note that this is only a simplistic default mechanism and can be changed by the DAO at any time (either altering the regional restrictions themselves or replacing the access mechanism entirely).
     function _verifyAccess(address wallet, bytes memory signature ) internal view returns (bool)
     	{
+			// q if the same signature used multiple time , this could cause the signature replay attack ? 
 		bytes32 messageHash = keccak256(abi.encodePacked(block.chainid, geoVersion, wallet));
-
+        // @audit-info : treat to signature replay attack , please take measure to avoid it 
 		return SigningTools._verifySignature(messageHash, signature);
     	}
 
@@ -73,6 +74,7 @@ contract AccessManager is IAccessManager
 	// Returns true if the wallet has access at the current geoVersion
     function walletHasAccess(address wallet) external view returns (bool)
     	{
+			// retrancy ?? no external : yes , view : no 
         return _walletsWithAccess[geoVersion][wallet];
     	}
 }

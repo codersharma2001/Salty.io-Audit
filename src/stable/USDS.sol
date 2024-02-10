@@ -32,6 +32,7 @@ contract USDS is ERC20, IUSDS, Ownable
 
 		// setCollateralAndLiquidity can only be called once
 		renounceOwnership();
+		// q why renounceOwnership?
 		}
 
 
@@ -53,6 +54,7 @@ contract USDS is ERC20, IUSDS, Ownable
     function burnTokensInContract() external
     	{
     	uint256 balance = balanceOf( address(this) );
+		// q maybe reentrancy ? 
     	_burn( address(this), balance );
 
     	emit USDSTokensBurned(balance);

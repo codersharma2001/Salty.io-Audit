@@ -49,10 +49,13 @@ contract Emissions is IEmissions
 		if ( timeSinceLastUpkeep >= MAX_TIME_SINCE_LAST_UPKEEP )
 			timeSinceLastUpkeep = MAX_TIME_SINCE_LAST_UPKEEP;
 
+         // q : can have donation attack here ?
 		uint256 saltBalance = salt.balanceOf( address( this ) );
 
+
 		// Target a certain percentage of rewards per week and base what we need to distribute now on how long it has been since the last distribution
-		uint256 saltToSend = ( saltBalance * timeSinceLastUpkeep * rewardsConfig.emissionsWeeklyPercentTimes1000() ) / ( 100 * 1000 weeks );
+		// @audit-info : using internal division could lead to precision error 
+		uint256 saltToSend = ( saltBalance * timeSinceLastUpkeep * rewardsConfig.emissionsWeeklyPercentTimes1000() ) / ( 100 * 1000 weeks ); // q magic no. ??
 		if ( saltToSend == 0 )
 			return;
 

@@ -16,6 +16,10 @@ contract RewardsConfig is IRewardsConfig, Ownable
 	// The target daily percent of rewards distributed by the stakingRewardsEmitter and liquidityRewardsEmitter (from the SALT balance in each emitter contract).
 	// Rewards Emitters distribute SALT rewards over time to the SharedRewards contracts where the rewards can be claimed by users.
 	// Range: .25% to 2.5% with an adjustment of 0.25%
+
+    // q : why public ? 
+    // a : to be able to read it from the frontend
+
 	uint256 public rewardsEmitterDailyPercentTimes1000 = 1000;  // Defaults to 1.0% with a 1000x multiplier
 
 	// The weekly percent of SALT emissions that will be distributed from Emissions.sol to the Liquidity and xSALT Holder Reward Emitters.
@@ -33,6 +37,13 @@ contract RewardsConfig is IRewardsConfig, Ownable
     uint256 public percentRewardsSaltUSDS = 10;
 
 
+       
+       // q : why external ? 
+         // a : to be able to call it from the frontend
+
+
+     // @audit-info : maybe cause reentrancy ? 
+    // info : external function may cause retrancy  
 	function changeRewardsEmitterDailyPercent(bool increase) external onlyOwner
         {
         if (increase)
@@ -45,7 +56,8 @@ contract RewardsConfig is IRewardsConfig, Ownable
             if (rewardsEmitterDailyPercentTimes1000 > 250)
                 rewardsEmitterDailyPercentTimes1000 = rewardsEmitterDailyPercentTimes1000 - 250;
             }
-
+        
+        // External function , calling from another contract , if the another contract does have vulnerabilities ,  it will cause reentrancy
 		emit RewardsEmitterDailyPercentChanged(rewardsEmitterDailyPercentTimes1000);
         }
 

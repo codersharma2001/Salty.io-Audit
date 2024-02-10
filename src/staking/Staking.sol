@@ -33,6 +33,8 @@ contract Staking is IStaking, StakingRewards
 	constructor( IExchangeConfig _exchangeConfig, IPoolsConfig _poolsConfig, IStakingConfig _stakingConfig )
 		StakingRewards( _exchangeConfig, _poolsConfig, _stakingConfig )
 		{
+			// q : empty constructor ? 
+
 		}
 
 
@@ -40,6 +42,7 @@ contract Staking is IStaking, StakingRewards
 	// Requires exchange access for the sending wallet.
 	function stakeSALT( uint256 amountToStake ) external nonReentrant
 		{
+		// @audit-info : Lack input validation checks , like amountToStake > 0 , and amountToStake <= balanceOf(msg.sender)
 		require( exchangeConfig.walletHasAccess(msg.sender), "Sender does not have exchange access" );
 
 		// Increase the user's staking share so that they will receive more future SALT rewards.
@@ -62,7 +65,9 @@ contract Staking is IStaking, StakingRewards
 		require( userShareForPool(msg.sender, PoolUtils.STAKED_SALT) >= amountUnstaked, "Cannot unstake more than the amount staked" );
 
 		uint256 claimableSALT = calculateUnstake( amountUnstaked, numWeeks );
+		// @audit medium : block.timestamp can be manupulated by the miners , led the victim to unstake early and get less SALT
 		uint256 completionTime = block.timestamp + numWeeks * ( 1 weeks );
+
 
 		unstakeID = nextUnstakeID++;
 		Unstake memory u = Unstake( UnstakeState.PENDING, msg.sender, amountUnstaked, claimableSALT, completionTime, unstakeID );
@@ -86,6 +91,8 @@ contract Staking is IStaking, StakingRewards
 		Unstake storage u = _unstakesByID[unstakeID];
 
 		require( u.status == UnstakeState.PENDING, "Only PENDING unstakes can be cancelled" );
+
+		// @audit-medium : block-timestamp can be manipulated by the miners , led the victim to cancel the unstake early and get less SALT
 		require( block.timestamp < u.completionTime, "Unstakes that have already completed cannot be cancelled" );
 		require( msg.sender == u.wallet, "Sender is not the original staker" );
 
@@ -102,6 +109,8 @@ contract Staking is IStaking, StakingRewards
 		{
 		Unstake storage u = _unstakesByID[unstakeID];
 		require( u.status == UnstakeState.PENDING, "Only PENDING unstakes can be claimed" );
+
+		// @audit medium : block-timestamp can be manipulated by miners 
 		require( block.timestamp >= u.completionTime, "Unstake has not completed yet" );
 		require( msg.sender == u.wallet, "Sender is not the original staker" );
 
@@ -127,6 +136,7 @@ contract Staking is IStaking, StakingRewards
 
 
 	// Send xSALT from the Airdrop contract to a user
+
 	function transferStakedSaltFromAirdropToUser(address wallet, uint256 amountToTransfer) external
 		{
 		require( msg.sender == address(exchangeConfig.airdrop()), "Staking.transferStakedSaltFromAirdropToUser is only callable from the Airdrop contract" );
@@ -204,6 +214,8 @@ contract Staking is IStaking, StakingRewards
 		require( numWeeks >= minUnstakeWeeks, "Unstaking duration too short" );
 		require( numWeeks <= maxUnstakeWeeks, "Unstaking duration too long" );
 
+
+         // @audit-info : take care for the overflow and underflow , and calculation based precision loss . 
 		uint256 percentAboveMinimum = 100 - minUnstakePercent;
 		uint256 unstakeRange = maxUnstakeWeeks - minUnstakeWeeks;
 

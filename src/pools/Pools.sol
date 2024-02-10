@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BUSL 1.1
 pragma solidity =0.8.22;
 
+// @audit-info : Ensure that imported contracts from OpenZeppelin and other libraries are from a trusted and verified source.
+
 import "openzeppelin-contracts/contracts/security/ReentrancyGuard.sol";
 import "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "openzeppelin-contracts/contracts/utils/math/Math.sol";
@@ -57,6 +59,7 @@ contract Pools is IPools, ReentrancyGuard, PoolStats, ArbitrageSearch, Ownable
 
 
 	// This will be called only once - at deployment time
+	//@audit medium: Consider the implications of renouncing ownership, especially in terms of upgradeability and emergency response.
 	function setContracts( IDAO _dao, ICollateralAndLiquidity _collateralAndLiquidity ) external onlyOwner
 		{
 		dao = _dao;
@@ -87,6 +90,8 @@ contract Pools is IPools, ReentrancyGuard, PoolStats, ArbitrageSearch, Ownable
 
 	// Add the given amount of two tokens to the specified liquidity pool.
 	// The maximum amount of tokens is added while having the added amount have the same ratio as the current reserves.
+	  //@audit low: Check for underflow/overflow possibilities, although SafeMath or similar checks might be in place.
+ 
 	function _addLiquidity( bytes32 poolID, uint256 maxAmount0, uint256 maxAmount1, uint256 totalLiquidity ) internal returns(uint256 addedAmount0, uint256 addedAmount1, uint256 addedLiquidity)
 		{
 		PoolReserves storage reserves = _poolReserves[poolID];
@@ -140,6 +145,7 @@ contract Pools is IPools, ReentrancyGuard, PoolStats, ArbitrageSearch, Ownable
 	function addLiquidity( IERC20 tokenA, IERC20 tokenB, uint256 maxAmountA, uint256 maxAmountB, uint256 minLiquidityReceived, uint256 totalLiquidity ) external nonReentrant returns (uint256 addedAmountA, uint256 addedAmountB, uint256 addedLiquidity)
 		{
 		require( msg.sender == address(collateralAndLiquidity), "Pools.addLiquidity is only callable from the CollateralAndLiquidity contract" );
+		//@audit medium: Ensure that `exchangeIsLive` cannot be bypassed or manipulated, as it controls critical functionality.
 		require( exchangeIsLive, "The exchange is not yet live" );
 		require( address(tokenA) != address(tokenB), "Cannot add liquidity for duplicate tokens" );
 
@@ -167,6 +173,9 @@ contract Pools is IPools, ReentrancyGuard, PoolStats, ArbitrageSearch, Ownable
 
 	// Remove liquidity for the user and reclaim the underlying tokens
 	// Only callable from the CollateralAndLiquidity contract - so it can specify totalLiquidity with authority
+	
+	  //@audit high: Functions like `removeLiquidity` must be carefully reviewed to prevent unauthorized withdrawal or proportion miscalculations.
+
 	function removeLiquidity( IERC20 tokenA, IERC20 tokenB, uint256 liquidityToRemove, uint256 minReclaimedA, uint256 minReclaimedB, uint256 totalLiquidity ) external nonReentrant returns (uint256 reclaimedA, uint256 reclaimedB)
 		{
 		require( msg.sender == address(collateralAndLiquidity), "Pools.removeLiquidity is only callable from the CollateralAndLiquidity contract" );
@@ -216,7 +225,9 @@ contract Pools is IPools, ReentrancyGuard, PoolStats, ArbitrageSearch, Ownable
 
 
 	// Withdraw tokens that were previously deposited
-    function withdraw( IERC20 token, uint256 amount ) external nonReentrant
+      //@audit medium: Proper validation of user deposits and transfers is crucial to prevent unauthorized access or token loss.
+  
+	function withdraw( IERC20 token, uint256 amount ) external nonReentrant
     	{
     	require( _userDeposits[msg.sender][token] >= amount, "Insufficient balance to withdraw specified amount" );
         require( amount > PoolUtils.DUST, "Withdraw amount too small");

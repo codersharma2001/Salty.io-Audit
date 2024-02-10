@@ -67,6 +67,8 @@ contract CollateralAndLiquidity is Liquidity, ICollateralAndLiquidity
 
 	// Deposit WBTC/WETH liqudity as collateral and increase the caller's collateral share for future rewards.
 	// Requires exchange access for the sending wallet (through depositLiquidityAndIncreaseShare)
+
+	// @audit : medium function is using the modifier ensureNotExpired(deadline) that is vulnerable to timestamp manipulation
 	function depositCollateralAndIncreaseShare( uint256 maxAmountWBTC, uint256 maxAmountWETH, uint256 minLiquidityReceived, uint256 deadline, bool useZapping ) external nonReentrant ensureNotExpired(deadline)  returns (uint256 addedAmountWBTC, uint256 addedAmountWETH, uint256 addedLiquidity)
 		{
 		// Have the user deposit the specified WBTC/WETH liquidity and increase their collateral share
@@ -77,6 +79,8 @@ contract CollateralAndLiquidity is Liquidity, ICollateralAndLiquidity
 
 
 	// Withdraw WBTC/WETH collateral and claim any pending rewards.
+
+	// @audit : medium function is using the modifier ensureNotExpired(deadline) that is vulnerable to timestamp manipulation
     function withdrawCollateralAndClaim( uint256 collateralToWithdraw, uint256 minReclaimedWBTC, uint256 minReclaimedWETH, uint256 deadline ) external nonReentrant ensureNotExpired(deadline) returns (uint256 reclaimedWBTC, uint256 reclaimedWETH)
 		{
 		// Make sure that the user has collateral and if they have borrowed USDS that collateralToWithdraw doesn't bring their collateralRatio below allowable levels.
@@ -92,8 +96,13 @@ contract CollateralAndLiquidity is Liquidity, ICollateralAndLiquidity
 
 	// Borrow USDS using existing collateral, making sure that the amount being borrowed does not exceed maxBorrowable
 	// Requires exchange access for the sending wallet
+
+
+	// @audit-info : why dont this smart contract using the allowance functionality to check the allowance of the user ? 
     function borrowUSDS( uint256 amountBorrowed ) external nonReentrant
 		{
+		// @audit low: The borrowUSDS function does not check or limit the rate of borrowing. 
+        // Rapid changes in collateral value could make this a vector for exploitation.
 		require( exchangeConfig.walletHasAccess(msg.sender), "Sender does not have exchange access" );
 		require( userShareForPool( msg.sender, collateralPoolID ) > 0, "User does not have any collateral" );
 		require( amountBorrowed <= maxBorrowableUSDS(msg.sender), "Excessive amountBorrowed" );
@@ -114,6 +123,8 @@ contract CollateralAndLiquidity is Liquidity, ICollateralAndLiquidity
      // Repay borrowed USDS and adjust the user's usdsBorrowedByUser
      function repayUSDS( uint256 amountRepaid ) external nonReentrant
 		{
+		// @audit medium: Consider implementing a function to handle rounding errors for small amounts of USDS.
+        // Small discrepancies can lead to issues in accounting.
 		require( userShareForPool( msg.sender, collateralPoolID ) > 0, "User does not have any collateral" );
 		require( amountRepaid <= usdsBorrowedByUsers[msg.sender], "Cannot repay more than the borrowed amount" );
 		require( amountRepaid > 0, "Cannot repay zero amount" );
@@ -139,6 +150,10 @@ contract CollateralAndLiquidity is Liquidity, ICollateralAndLiquidity
 	// A default 5% of the value of the collateral is sent to the caller, with the rest being sent to the Liquidator for later conversion to USDS which is then burned.
 	function liquidateUser( address wallet ) external nonReentrant
 		{
+		
+		// @audit high: Ensure proper access control for liquidation calls. 
+        // Malicious actors could potentially exploit the function without proper checks.
+
 		require( wallet != msg.sender, "Cannot liquidate self" );
 
 		// First, make sure that the user's collateral ratio is below the required level
@@ -316,6 +331,9 @@ contract CollateralAndLiquidity is Liquidity, ICollateralAndLiquidity
 		// Cache
 		uint256 totalCollateralShares = totalShares[collateralPoolID];
 		uint256 totalCollateralValue = totalCollateralValueInUSD();
+         
+		// @audit low : The function could result in high gas costs due to the loop. 
+        // Consider implementing pagination or gas optimization strategies.
 
 		if ( totalCollateralValue != 0 )
 			for ( uint256 i = startIndex; i <= endIndex; i++ )
@@ -341,7 +359,8 @@ contract CollateralAndLiquidity is Liquidity, ICollateralAndLiquidity
 		return resizedLiquidatableUsers;
 		}
 
-
+    // @audit-info : Ensure all external calls to other contracts are secure and handle possible reentrancy attacks.
+    // @audit-info : Regularly update and check dependencies for known vulnerabilities.
 	function findLiquidatableUsers() external view returns (address[] memory)
 		{
 		if ( numberOfUsersWithBorrowedUSDS() == 0 )

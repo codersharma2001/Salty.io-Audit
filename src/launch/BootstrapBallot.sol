@@ -6,6 +6,7 @@ import "../interfaces/IExchangeConfig.sol";
 import "./interfaces/IBootstrapBallot.sol";
 import "./interfaces/IAirdrop.sol";
 import "../SigningTools.sol";
+// @audit-info : it is also using the SigningTools library , which is a library that is used to verify the signature of the user , can likely to cause a signature replay attack.
 
 
 // Allows airdrop participants to vote on whether or not to start up the exchange and which countries should be initially excluded from access.
@@ -29,6 +30,8 @@ contract BootstrapBallot is IBootstrapBallot, ReentrancyGuard
 	uint256 public startExchangeYes;
 	uint256 public startExchangeNo;
 
+	// q : why the variables are public ? , what if they manipulated ? 
+
 
 
 	constructor( IExchangeConfig _exchangeConfig, IAirdrop _airdrop, uint256 ballotDuration )
@@ -39,6 +42,7 @@ contract BootstrapBallot is IBootstrapBallot, ReentrancyGuard
 		airdrop = _airdrop;
 
 		completionTimestamp = block.timestamp + ballotDuration;
+		// @audit-info : using block.timestamp at the initialization of the contract is not a good practice , because the timestamp can be manipulated by the miner.
 		}
 
 
@@ -47,6 +51,8 @@ contract BootstrapBallot is IBootstrapBallot, ReentrancyGuard
 	// Requires a valid signature to signify that the msg.sender is authorized to vote (being whitelisted and the retweeting exchange launch posting - checked offchain)
 	function vote( bool voteStartExchangeYes, bytes calldata signature ) external nonReentrant
 		{
+
+	    // @audit-info : if the signature present on onchain , and the attacker guess the right , true or false , as it is the public quite risky , because the attacker can manipulate the signature and guess the right answer , and might win behalf of user 
 		require( ! hasVoted[msg.sender], "User already voted" );
 
 		// Verify the signature to confirm the user is authorized to vote
@@ -70,7 +76,7 @@ contract BootstrapBallot is IBootstrapBallot, ReentrancyGuard
 		{
 		require( ! ballotFinalized, "Ballot has already been finalized" );
 		require( block.timestamp >= completionTimestamp, "Ballot is not yet complete" );
-
+        // e : still using timestamp here ? 
 		if ( startExchangeYes > startExchangeNo )
 			{
 			exchangeConfig.initialDistribution().distributionApproved();

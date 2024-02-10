@@ -44,6 +44,8 @@ contract Upkeep is IUpkeep, ReentrancyGuard
 
     event UpkeepError(string description, bytes error);
 
+    // @audit high Ensure that the ownership and control of referenced contracts are secure and as intended.
+
 	IPools immutable public pools;
 	IExchangeConfig  immutable public exchangeConfig;
 	IPoolsConfig immutable public poolsConfig;
@@ -88,6 +90,9 @@ contract Upkeep is IUpkeep, ReentrancyGuard
 
 		// Approve for future WETH swaps.
 		// This contract only has a temporary WETH balance within the performUpkeep() function itself.
+		// @audit-info Review gas usage and optimize where possible, especially in loops or repeated external calls.
+        // @audit low Be aware of the risks associated with setting high allowances.
+
 		weth.approve( address(pools), type(uint256).max );
 		}
 
@@ -97,6 +102,9 @@ contract Upkeep is IUpkeep, ReentrancyGuard
     	require(msg.sender == address(this), "Only callable from within the same contract");
     	_;
 		}
+
+
+    // @audit medium Consider marking step functions as internal if they are not meant to be called externally.
 
 
 	// Note - while the following steps are public so that they can be wrapped in a try/catch, they are all still only callable from this same contract.
@@ -208,7 +216,8 @@ contract Upkeep is IUpkeep, ReentrancyGuard
 
 		saltRewards.stakingRewardsEmitter().performUpkeep(timeSinceLastUpkeep);
 		saltRewards.liquidityRewardsEmitter().performUpkeep(timeSinceLastUpkeep);
-
+        
+		// @audit-info Ensure that the use of block.timestamp does not introduce vulnerabilities or critical dependencies.
 		lastUpkeepTimeRewardsEmitters = block.timestamp;
 		}
 
@@ -241,10 +250,15 @@ contract Upkeep is IUpkeep, ReentrancyGuard
 
 	// Perform the various steps of performUpkeep as outlined at the top of the contract.
 	// Each step is wrapped in a try/catch to prevent reversions from cascading through the performUpkeep.
+	
+	// @audit-info Ensure that all functions that require protection have nonReentrant modifier.
+
 	function performUpkeep() public nonReentrant
 		{
 		// Perform the multiple steps of performUpkeep()
  		try this.step1() {}
+		 // @audit-info Ensure proper off-chain monitoring and handling of UpkeepError events.
+
 		catch (bytes memory error) { emit UpkeepError("Step 1", error); }
 
  		try this.step2(msg.sender) {}
@@ -278,13 +292,18 @@ contract Upkeep is IUpkeep, ReentrancyGuard
 		catch (bytes memory error) { emit UpkeepError("Step 11", error); }
 		}
 
+    // @audit medium Consider an upgradable pattern like proxies if the protocol anticipates future upgrades.
 
 	// ==== VIEWS ====
 	// Returns the amount of WETH that will currently be rewarded for calling performUpkeep().
 	// Useful for potential callers to know if calling the function will be profitable in comparison to current gas costs.
 	function currentRewardsForCallingPerformUpkeep() public view returns (uint256)
 		{
+		// @audit medium Add necessary logical checks and input validations to prevent unexpected behavior.
+
 		uint256 daoWETH = pools.depositedUserBalance( address(dao), weth );
+        
+		// @audit-info Ensure safe math is used or Solidity version 0.8.x's inherent overflow checks are relied upon.
 
 		return daoWETH * daoConfig.upkeepRewardPercent() / 100;
 		}

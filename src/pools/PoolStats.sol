@@ -39,6 +39,8 @@ abstract contract PoolStats is IPoolStats
 		// Though three pools contributed to the arbitrage we can record just the middle one as we know the input and output token will be WETH
 		bytes32 poolID = PoolUtils._poolID( arbToken2, arbToken3 );
 
+        // Lack of event after state changes can make it difficult to trace the state of the contract
+        // @audit-info : Consider emitting event after significant state changes for better transparent and tracebility . 
 		_arbitrageProfits[poolID] += arbitrageProfit;
 		}
 
@@ -46,6 +48,9 @@ abstract contract PoolStats is IPoolStats
 	// Called at the end of Upkeep.performUpkeep to reset the arbitrage stats for the pools
 	function clearProfitsForPools() external
 		{
+			// Access control relies on the caller being the Upkeep contract
+            // @audit low: Confirm that this access control mechanism is sufficient and aligns with the protocol's operational model.
+
 		require(msg.sender == address(exchangeConfig.upkeep()), "PoolStats.clearProfitsForPools is only callable from the Upkeep contract" );
 
 		bytes32[] memory poolIDs = poolsConfig.whitelistedPools();
@@ -78,6 +83,7 @@ abstract contract PoolStats is IPoolStats
 		{
 		bytes32[] memory poolIDs = poolsConfig.whitelistedPools();
 
+        // @audit medium : using for loop can lead to high gas costs or out-of-gas errors
 		for( uint256 i = 0; i < poolIDs.length; i++ )
 			{
 			bytes32 poolID = poolIDs[i];
@@ -101,20 +107,28 @@ abstract contract PoolStats is IPoolStats
 
 	// Examine the arbitrage that has been generated since the last Upkeep.performUpkeep call and credit the pools that have contributed towards it.
 	// The calculated sums for each pool will then be used to proportionally distribute SALT rewards to each of the contributing pools.
+	
+	
 	function _calculateArbitrageProfits( bytes32[] memory poolIDs, uint256[] memory _calculatedProfits ) internal view
 		{
+		// @audit medium: Consider optimizing or limiting the loop to prevent high gas costs or out-of-gas errors.
+
 		for( uint256 i = 0; i < poolIDs.length; i++ )
 			{
 			// references poolID(arbToken2, arbToken3) which defines the arbitage path of WETH->arbToken2->arbToken3->WETH
 			bytes32 poolID = poolIDs[i];
 
 			// Split the arbitrage profit between all the pools that contributed to generating the arbitrage for the referenced pool.
+			// @audit-info : Using magic numbers can lead to unexpected behavior or errors
 			uint256 arbitrageProfit = _arbitrageProfits[poolID] / 3;
+
 			if ( arbitrageProfit > 0 )
 				{
 				ArbitrageIndicies memory indicies = _arbitrageIndicies[poolID];
 
 				if ( indicies.index1 != INVALID_POOL_ID )
+				    // @audit medium: Review the profit calculation logic to ensure it accurately reflects each pool's contribution to the generated arbitrage profits.
+
 					_calculatedProfits[indicies.index1] += arbitrageProfit;
 
 				if ( indicies.index2 != INVALID_POOL_ID )
@@ -140,7 +154,7 @@ abstract contract PoolStats is IPoolStats
 		}
 
 
-	function arbitrageIndicies(bytes32 poolID) external view returns (ArbitrageIndicies memory)
+	function arbitrageIndicies(bytes32 poolID) external view returns (ArbitrageIndicies memory) // check 
 		{
 		return _arbitrageIndicies[poolID];
 		}

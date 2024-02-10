@@ -45,6 +45,7 @@ contract ExchangeConfig is IExchangeConfig, Ownable
 
 
 	// setContracts can only be be called once - and is called at deployment time.
+	// @audit high : giving all access to the owner for all the different parameters  is not a good practice , as it can cause single point of failure , its crucial to ensure that the owner is a trusted entity and has the proper access control to prevent any unintended behavior. 
 	function setContracts( IDAO _dao, IUpkeep _upkeep, IInitialDistribution _initialDistribution, IAirdrop _airdrop, VestingWallet _teamVestingWallet, VestingWallet _daoVestingWallet ) external onlyOwner
 		{
 		// setContracts is only called once (on deployment)
@@ -71,6 +72,9 @@ contract ExchangeConfig is IExchangeConfig, Ownable
 
 	// Provide access to the protocol components using the AccessManager to determine if a wallet should have access.
 	// AccessManager can be updated by the DAO and include any necessary functionality.
+
+     // @audit low : The walletHasAccess function contains hardcoded checks for the DAO and Airdrop contract addresses. This is not necessarily a vulnerability but can be considered a limitation if the logic for access needs to evolve or be more dynamic in the future
+
 	function walletHasAccess( address wallet ) external view returns (bool)
 		{
 		// The DAO contract always has access (needed to form POL)

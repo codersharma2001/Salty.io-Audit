@@ -13,6 +13,7 @@ import "./interfaces/IAirdrop.sol";
 
 contract Airdrop is IAirdrop, ReentrancyGuard
     {
+    // @audit-info  using EnumerableSet for _authorizedUsers could lead to gas inefficiency if the set grows too large
     using EnumerableSet for EnumerableSet.AddressSet;
 
 	IExchangeConfig immutable public exchangeConfig;
@@ -20,6 +21,7 @@ contract Airdrop is IAirdrop, ReentrancyGuard
     ISalt immutable public salt;
 
 	// These are users who have retweeted the launch announcement and voted
+
 	EnumerableSet.AddressSet private _authorizedUsers;
 
 	// Set to true when airdrop claiming is allowed
@@ -45,6 +47,7 @@ contract Airdrop is IAirdrop, ReentrancyGuard
 	// The BootstrapBallot would have already confirmed the user retweeted and voted.
     function authorizeWallet( address wallet ) external
     	{
+			// @audit high : it's critical to ensure the referenced contracts (initialDistribution().bootstrapBallot() and initialDistribution()) have proper access controls to prevent unauthorized access
     	require( msg.sender == address(exchangeConfig.initialDistribution().bootstrapBallot()), "Only the BootstrapBallot can call Airdrop.authorizeWallet" );
     	require( ! claimingAllowed, "Cannot authorize after claiming is allowed" );
 
@@ -61,9 +64,11 @@ contract Airdrop is IAirdrop, ReentrancyGuard
 
     	// All users receive an equal share of the airdrop.
     	uint256 saltBalance = salt.balanceOf(address(this));
+		// @audit medium : In the allowClaiming function, the division to calculate saltAmountForEachUser may lead to a loss of precision due to integer division
 		saltAmountForEachUser = saltBalance / numberAuthorized();
 
 		// Have the Airdrop approve max so that that xSALT (staked SALT) can later be transferred to airdrop recipients.
+		// @audit medium : contract approves the maximum possible amount of token to staking contract , this is risky permission 
 		salt.approve( address(staking), saltBalance );
 
     	claimingAllowed = true;
@@ -77,6 +82,7 @@ contract Airdrop is IAirdrop, ReentrancyGuard
     	require( isAuthorized(msg.sender), "Wallet is not authorized for airdrop" );
     	require( ! claimed[msg.sender], "Wallet already claimed the airdrop" );
 
+        // @audit low : as the reentrant modifier is used , its good practice to follow CEI pattern to prevent any re-entrancy attack
 		// Have the Airdrop contract stake a specified amount of SALT and then transfer it to the user
 		staking.stakeSALT( saltAmountForEachUser );
 		staking.transferStakedSaltFromAirdropToUser( msg.sender, saltAmountForEachUser );

@@ -1,0 +1,680 @@
+ Salt.sol
+   // @audit-info : Emit event , maybe reentrancy attack? 
+
+
+SigningTools.sol
+
+   	// @audit-info : maybe signature replay attack ? lol ? maybe just :)
+
+
+CoreSaltyFeed.sol
+
+		// @audit-info : magic number are bad practice here 
+		return ( reservesUSDS * 10**8 ) / reservesWBTC;
+
+
+AccessManager.sol
+
+    function _verifyAccess(address wallet, bytes memory signature ) internal view returns (bool)
+    	{
+			// q if the same signature used multiple time , this could cause the signature replay attack ? 
+		bytes32 messageHash = keccak256(abi.encodePacked(block.chainid, geoVersion, wallet));
+        // @audit-info : treat to signature replay attack , please take measure to avoid it 
+		return SigningTools._verifySignature(messageHash, signature);
+    	}
+
+
+Emissions.sol
+
+		uint256 saltToSend = ( saltBalance * timeSinceLastUpkeep * rewardsConfig.emissionsWeeklyPercentTimes1000() ) / ( 100 * 1000 weeks ); // q magic no. ??
+		if ( saltToSend == 0 )
+			return;
+
+
+CoreChainlinkFeed.sol
+
+		int256 price = 0;
+        // @audit medium : Usage of deprecated Chainlink functions like latestRoundData() might return stale or incorrect data, affecting the integrity of smart contracts.
+		// SEVERITY : HIGH
+		try chainlinkFeed.latestRoundData()
+		returns (
+			uint80, // _roundID
+			int256 _price,
+			uint256, // _startedAt
+			uint256 _answerTimestamp,
+			uint80 // _answeredInRound
+		)
+
+       return uint256(price) * 10**10; // magic no. ?? 
+
+
+ManagedWallet.sol
+
+          function changeWallets() external {
+        // proposedMainWallet calls the function - to make sure it is a valid address.
+        require(msg.sender == proposedMainWallet, "Invalid sender");
+        require(
+            // @audit medium : block.timestamp can be manipulated , Miners have some ability to manipulate this value, which could potentially allow them to execute the function before the intended time.
+            block.timestamp >= activeTimelock,
+            "Timelock not yet completed"
+
+			// q : block.timestamp is not a good way to check the time, because it can be manipulated by miners.
+        );
+
+ 
+BootstrapBallot.sol
+
+// @audit-info : it is also using the SigningTools library , which is a library that is used to verify the signature of the user , can likely to cause a signature replay attack.
+
+	completionTimestamp = block.timestamp + ballotDuration;
+		// @audit-info : using block.timestamp at the initialization of the contract is not a good practice , because the timestamp can be manipulated by the miner.
+
+
+	    // @audit-info : if the signature present on onchain , and the attacker guess the right , true or false , as it is the public quite risky , because the attacker can manipulate the signature and guess the right answer , and might win behalf of user 
+		require( ! hasVoted[msg.sender], "User already voted" );
+
+
+InitialDistribution.sol
+
+	// @audit-info : lack of emitting events , even after the significant state changes 
+ 
+    // @audit high distributionApproved is external and can be called by anyone, but it is only callable by the BootstrapBallot contract , its crucial to ensure that the BootstrapBallot contract itself has the proper access control 
+    function distributionApproved() external
+
+require( msg.sender == address(bootstrapBallot), "InitialDistribution.distributionApproved can only be called from the BootstrapBallot contract" );
+		// @audit : low , token transfer amount , its crucial to ensure that the contract indeed holds this amount of tokens before proceeding with the distribution to prevent any unintended behavior.
+		require( salt.balanceOf(address(this)) == 100 * MILLION_ETHER, "SALT has already been sent from the contract" );
+
+	salt.safeTransfer( address(emissions), 52 * MILLION_ETHER );
+		// @audit-info : magic numbers , its good practice to define these no. as constants . 
+
+	
+		// @audit medium transfers token to multiple external contracts , if any of contract are malicious or compromised , they could potentially call-back into this contract and cause a re-entrancy attack  
+		salt.safeTransfer( address(saltRewards), 8 * MILLION_ETHER );
+	
+
+Airdrop.sol
+
+  // @audit-info  using EnumerableSet for _authorizedUsers could lead to gas inefficiency if the set grows too large
+    using EnumerableSet for EnumerableSet.AddressSet;
+
+			// @audit high : it's critical to ensure the referenced contracts (initialDistribution().bootstrapBallot() and initialDistribution()) have proper access controls to prevent unauthorized access
+    	require( msg.sender == address(exchangeConfig.initialDistribution().bootstrapBallot()), "Only the BootstrapBallot can call Airdrop.authorizeWallet" );
+    	require( ! claimingAllowed, "Cannot authorize after claiming is allowed" );
+
+		// @audit medium : In the allowClaiming function, the division to calculate saltAmountForEachUser may lead to a loss of precision due to integer division
+		saltAmountForEachUser = saltBalance / numberAuthorized();
+
+		// @audit medium : contract approves the maximum possible amount of token to staking contract , this is risky permission 
+		salt.approve( address(staking), saltBalance );
+
+    // @audit low : as the reentrant modifier is used , its good practice to follow CEI pattern to prevent any re-entrancy attack
+		// Have the Airdrop contract stake a specified amount of SALT and then transfer it to the user
+
+
+ExchangeConfig.sol
+
+	// setContracts can only be be called once - and is called at deployment time.
+	// @audit high : giving all access to the owner for all the different parameters  is not a good practice , as it can cause single point of failure , its crucial to ensure that the owner is a trusted entity and has the proper access control to prevent any unintended behavior. 
+	function setContracts( IDAO _dao, IUpkeep _upkeep, IInitialDistribution _initialDistribution, IAirdrop _airdrop, VestingWallet _teamVestingWallet, VestingWallet _daoVestingWallet ) external onlyOwner
+		
+       // @audit low : The walletHasAccess function contains hardcoded checks for the DAO and Airdrop contract addresses. This is not necessarily a vulnerability but can be considered a limitation if the logic for access needs to evolve or be more dynamic in the future
+
+	function walletHasAccess( address wallet ) external view returns (bool)
+
+
+RewardsConfig.sol
+
+     // @audit-info : maybe cause reentrancy ? 
+    // info : external function may cause retrancy  
+	function changeRewardsEmitterDailyPercent(bool increase) external onlyOwner
+   
+     // @audit-info : magic numbers 
+
+
+StakingConfig.sol
+
+   	uint256 public minUnstakeWeeks = 2;  // minUnstakePercent returned for unstaking this number of weeks
+    // @audit low : storing small valvue sometimes leds to precision loss , which can be dangerous
+
+     // @audit low : giving owner too many powers , owner can change the parameters of the contract , which can be dangerous
+     
+	function changeMinUnstakeWeeks(bool increase) external onlyOwner
+     
+     // @audit-info : magic no.
+
+
+ArbitrageSearch.sol
+
+    	uint256 constant public MIDPOINT_PRECISION = 0.001e18; // .001 ETH precision for arb search  
+	 // @audit-info : thats really bad , using too small precision can lead to precision loss , which can be dangerous
+
+
+		// @audit-info : this function is safe from the underflow or overflow , but need to deal with the edge cases like : 
+		// 1 . midpoint value is used in a division operation, which could potentially lead to an overflow if it's too large.
+		// 2 . amountOut could potentially cause an overflow if the reserve values are extremely large
+		// 3 . The profitMidpoint and profitRightOfMidpoint calculations involve subtraction and could potentially underflow if amountOut is less than midpoint
+
+		unchecked
+			{
+			// Calculate the AMM output of the midpoint
+			uint256 amountOut = (reservesA1 * midpoint) / (reservesA0 + midpoint);
+			amountOut = (reservesB1 * amountOut) / (reservesB0 + amountOut);
+			amountOut = (reservesC1 * amountOut) / (reservesC0 + amountOut);
+
+			int256 profitMidpoint = int256(amountOut) - int256(midpoint);
+
+			// If the midpoint isn't profitable then we can remove the right half the range as nothing there will be profitable there either.
+			if ( profitMidpoint < int256(PoolUtils.DUST) )
+				return false;
+
+
+			// Calculate the AMM output of a point just to the right of the midpoint
+			midpoint += MIDPOINT_PRECISION;
+
+			amountOut = (reservesA1 * midpoint) / (reservesA0 + midpoint);
+			amountOut = (reservesB1 * amountOut) / (reservesB0 + amountOut);
+			amountOut = (reservesC1 * amountOut) / (reservesC0 + amountOut);
+
+			int256 profitRightOfMidpoint = int256(amountOut) - int256(midpoint);
+
+			return profitRightOfMidpoint > profitMidpoint;
+			}
+		}
+
+
+Liquidity.sol
+
+          // q : where is the natspec ? , assume that this modifier is used to check if the tx is expired or not
+	// @audit medium : if the if the liquidity provider can manipulate the timestamp , he can bypass this check , makes the deadline useless for him 
+	modifier ensureNotExpired(uint deadline)
+		{
+		require(block.timestamp <= deadline, "TX EXPIRED");
+		_;
+		}
+
+		// Approve the liquidity to add
+		// @audit medium : Consider limited amount of token or approval , that is needed for the operation , and revoking it afterwards 
+		tokenA.approve( address(pools), maxAmountA );
+		tokenB.approve( address(pools), maxAmountB );
+
+
+    	// @audit info : Ensure that the behavior of returning unused token is well documented and understood 
+		if ( addedAmountA < maxAmountA )
+			tokenA.safeTransfer( msg.sender, maxAmountA - addedAmountA );
+
+		if ( addedAmountB < maxAmountB )
+			tokenB.safeTransfer( msg.sender, maxAmountB - addedAmountB );
+
+       // @audit medium: Validate inputs to prevent issues related to zero addresses, zero amounts, or invalid tokens.
+// require(address(tokenA) != address(0) && address(tokenB) != address(0), "Invalid token addresses");
+// require(maxAmountA > 0 && maxAmountB > 0, "Invalid deposit amounts");
+
+   // @audit low : Review all external call although using the reentrant modifier is great practice , but , review and ensure the complience with CEI pattern 
+	function depositLiquidityAndIncreaseShare( IERC20 tokenA, IERC20 tokenB, uint256 maxAmountA, uint256 maxAmountB, uint256 minLiquidityReceived, uint256 deadline, bool useZapping ) external nonReentrant ensureNotExpired(deadline) returns (uint256 addedAmountA, uint256 addedAmountB, uint256 addedLiquidity)
+		{
+		require( PoolUtils._poolID( tokenA, tokenB ) != collateralPoolID, "Stablecoin collateral cannot be deposited via Liquidity.depositLiquidityAndIncreaseShare" );
+
+    	return _depositLiquidityAndIncreaseShare(tokenA, tokenB, maxAmountA, maxAmountB, minLiquidityReceived, useZapping);
+		}
+
+
+CoreUniswapFeed.sol
+
+// @audit medium: Consider using SafeMath or solidity 0.8.x built-in overflow checks to mitigate these risks		 // @info : use the safemath library to avoid this issue
+		int24 tick = int24((tickCumulatives[1] - tickCumulatives[0]) / int56(uint56(twapInterval)));
+		uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick( tick );
+		uint256 p = FullMath.mulDiv(sqrtPriceX96, sqrtPriceX96, FixedPoint96.Q96 );
+
+		uint8 decimals0 = ( ERC20( pool.token0() ) ).decimals();
+		uint8 decimals1 = ( ERC20( pool.token1() ) ).decimals();
+
+		// @audit-info : magics numbers are used 
+
+			return FullMath.mulDiv( 10 ** ( 18 + decimals1 - decimals0 ), FixedPoint96.Q96, p );
+
+		if ( decimals0 > decimals1 )
+			return ( FixedPoint96.Q96 * ( 10 ** 18 ) ) / ( p * ( 10 ** ( decimals0 - decimals1 ) ) );
+
+		return ( FixedPoint96.Q96 * ( 10 ** 18 ) ) / p;
+    	
+  // @audit low: Validate inputs, especially external ones, to ensure they meet the expected format or constraints.
+// require(address(pool) != address(0), "Invalid pool address");
+
+   	// @audit low : The contract uses try/catch block , ensure the this error handling s comprehensive and doesn't supress important errors that should be handled
+		uint256 twap = 0;
+		try this._getUniswapTwapWei(pool, twapInterval) returns (uint256 result)
+			{
+			twap = result;
+			}
+		catch (bytes memory)
+			{
+			// In case of failure, twap will remain 0
+			}
+
+		return twap;
+		
+
+RewardsEmitter.sol
+
+	// @audit low : Limit the approval to the amount of rewards that will be distributed in the future
+		salt.approve(address(stakingRewards), type(uint256).max);
+		}
+
+
+	// @audit medium : Implement access control to restrict the function to only the owner , otehrwise  any one can call it and manipulate the pending rewards . 
+	function addSALTRewards( AddedReward[] calldata addedRewards ) external nonReentrant
+		{
+		uint256 sum = 0;
+
+		// @audit-info : Consider optimizing loops or implmeneting the gas-effficient pattern 
+		for( uint256 i = 0; i < addedRewards.length; i++ )
+			{
+			AddedReward memory addedReward = addedRewards[i];
+			require( poolsConfig.isWhitelisted( addedReward.poolID ), "Invalid pool" );
+
+			uint256 amountToAdd = addedReward.amountToAdd;
+			if ( amountToAdd != 0 )
+				{
+				// Update pendingRewards so the SALT can be distributed later
+				pendingRewards[ addedReward.poolID ] += amountToAdd;
+				sum += amountToAdd;
+				}
+			}
+        }
+
+    	// @audit medium : Consider setting a limit on the number of pools or implement a more gas efficient mechenism 
+		for( uint256 i = 0; i < poolIDs.length; i++ )
+			{
+			bytes32 poolID = poolIDs[i];
+
+			// Each pool will send a percentage of the pending rewards based on the time elapsed since the last send
+			// @audit medium : Consider using the safe math or solidity buil-in overflow checks to mitigate this risk
+			uint256 amountToAddForPool = ( pendingRewards[poolID] * numeratorMult ) / denominatorMult;
+
+			// Reduce the pending rewards so they are not sent again
+			if ( amountToAddForPool != 0 )
+				{
+				pendingRewards[poolID] -= amountToAddForPool;
+
+				sum += amountToAddForPool;
+				}
+
+			// Specify the rewards that will be added for the specific pool
+			addedRewards[i] = AddedReward( poolID, amountToAddForPool );
+			}
+
+
+PoolStats.sol
+
+     // @audit-info : Consider emitting event after significant state changes for better transparent and tracebility . 
+		_arbitrageProfits[poolID] += arbitrageProfit;
+
+     	function clearProfitsForPools() external
+		{
+			// Access control relies on the caller being the Upkeep contract
+            // @audit low: Confirm that this access control mechanism is sufficient and aligns with the protocol's operational model.
+
+        }
+
+       // @audit medium : using for loop can lead to high gas costs or out-of-gas errors
+		for( uint256 i = 0; i < poolIDs.length; i++ )
+			{
+			bytes32 poolID = poolIDs[i];
+			(IERC20 arbToken2, IERC20 arbToken3) = poolsConfig.underlyingTokenPair(poolID);
+
+			// The middle two tokens can never be WETH in a valid arbitrage path as the path is WETH->arbToken2->arbToken3->WETH.
+			if ( (arbToken2 != _weth) && (arbToken3 != _weth) )
+				{
+				uint64 poolIndex1 = _poolIndex( _weth, arbToken2, poolIDs );
+				uint64 poolIndex2 = _poolIndex( arbToken2, arbToken3, poolIDs );
+				uint64 poolIndex3 = _poolIndex( arbToken3, _weth, poolIDs );
+
+				// Check if the indicies in storage have the correct values - and if not then update them
+				ArbitrageIndicies memory indicies = _arbitrageIndicies[poolID];
+				if ( ( poolIndex1 != indicies.index1 ) || ( poolIndex2 != indicies.index2 ) || ( poolIndex3 != indicies.index3 ) )
+					_arbitrageIndicies[poolID] = ArbitrageIndicies(poolIndex1, poolIndex2, poolIndex3);
+				}
+			}
+
+        		// @audit medium: Consider optimizing or limiting the loop to prevent high gas costs or out-of-gas errors.
+
+		for( uint256 i = 0; i < poolIDs.length; i++ )
+			{
+			// references poolID(arbToken2, arbToken3) which defines the arbitage path of WETH->arbToken2->arbToken3->WETH
+			bytes32 poolID = poolIDs[i];
+
+			// Split the arbitrage profit between all the pools that contributed to generating the arbitrage for the referenced pool.
+			// @audit-info : Using magic numbers can lead to unexpected behavior or errors
+			uint256 arbitrageProfit = _arbitrageProfits[poolID] / 3;
+
+			if ( arbitrageProfit > 0 )
+				{
+				ArbitrageIndicies memory indicies = _arbitrageIndicies[poolID];
+
+				if ( indicies.index1 != INVALID_POOL_ID )
+				    // @audit medium: Review the profit calculation logic to ensure it accurately reflects each pool's contribution to the generated arbitrage profits.
+
+					_calculatedProfits[indicies.index1] += arbitrageProfit;
+
+				if ( indicies.index2 != INVALID_POOL_ID )
+					_calculatedProfits[indicies.index2] += arbitrageProfit;
+
+				if ( indicies.index3 != INVALID_POOL_ID )
+					_calculatedProfits[indicies.index3] += arbitrageProfit;
+				}
+			}
+
+
+Parameters.sol
+
+// Comprehensive enum definition for parameters
+// @audit-info : Provide detailed documentation for each parameter in the `ParameterTypes` enum to ensure clarity and understanding of their impact.
+
+   // @audit high : The _executeParameterChange function modifies critical system parameters but does not implement explicit access control . 
+
+
+PoolsConfig.sol
+
+// @audit high : whitelist pool function is using updateArbitrageIndicies() is gas intensive public function before emitter leds to re-entrancy attack .  
+	function whitelistPool( IPools pools, IERC20 tokenA, IERC20 tokenB ) external onlyOwner
+		{
+		require( _whitelist.length() < maximumWhitelistedPools, "Maximum number of whitelisted pools already reached" );
+		require(tokenA != tokenB, "tokenA and tokenB cannot be the same token");
+
+		bytes32 poolID = PoolUtils._poolID(tokenA, tokenB);
+
+		// Add to the whitelist and remember the underlying tokens for the pool
+		_whitelist.add(poolID);
+		underlyingPoolTokens[poolID] = TokenPair(tokenA, tokenB);
+
+		// Make sure that the cached arbitrage indicies in PoolStats are updated
+		pools.updateArbitrageIndicies();
+
+ 		emit PoolWhitelisted(address(tokenA), address(tokenB));
+		}
+
+
+StableConfig.sol
+
+    // @audit low : make these variable immutable , as they are not changed after deployment , and it is not a constant , why didnt you made protocol smart contract upgradable ? 
+    uint256 public rewardPercentForCallingLiquidation = 5;
+
+   // @audit-info : magic numbers , use constants
+            if (remainingRatioAfterReward >= 105 && rewardPercentForCallingLiquidation < 10)
+                rewardPercentForCallingLiquidation += 1;
+
+
+Staking.sol
+
+function stakeSALT( uint256 amountToStake ) external nonReentrant
+		{
+		// @audit-info : Lack input validation checks , like amountToStake > 0 , and amountToStake <= balanceOf(msg.sender)
+		require( exchangeConfig.walletHasAccess(msg.sender), "Sender does not have exchange access" );
+
+	// @audit medium : block.timestamp can be manupulated by the miners , led the victim to unstake early and get less SALT
+		uint256 completionTime = block.timestamp + numWeeks * ( 1 weeks );
+
+  	// @audit medium : block-timestamp can be manipulated by miners 
+		require( block.timestamp >= u.completionTime, "Unstake has not completed yet" );
+	
+             // @audit-info : take care for the overflow and underflow , integer based division and calculation based precision loss . 
+		uint256 percentAboveMinimum = 100 - minUnstakePercent;
+		uint256 unstakeRange = maxUnstakeWeeks - minUnstakeWeeks;
+		uint256 numerator = unstakedXSALT * ( minUnstakePercent * unstakeRange + percentAboveMinimum * ( numWeeks - minUnstakeWeeks ) );
+    	return numerator / ( 100 * unstakeRange );
+
+
+PriceAggregator.sol
+
+        // @audit medium : block-timestamp can be manupulated by the miners , led the victim to set wrong price feed. 
+		priceFeedModificationCooldownExpiration = block.timestamp + priceFeedModificationCooldown;
+		emit PriceFeedSet(priceFeedNum, newPriceFeed);
+
+		   // @audit-info : why are you using magic no. ? 
+            {
+            if (maximumPriceFeedPercentDifferenceTimes1000 < 7000)
+                maximumPriceFeedPercentDifferenceTimes1000 += 500;
+            }
+
+		// @audit-info : use safemath library 
+		if ( x > y )
+			return x - y;
+
+		return y - x;
+		}
+
+
+
+DAOConfig.sol
+
+	// @audit medium : variable should be declared as immutable , as it is not changed after deployment , and it is not a constant , why didnt you made protocol smart contract upgradable ? 
+	uint256 public bootstrappingRewards = 200000 ether;
+
+Upkeep.sol
+
+  // @audit high Ensure that the ownership and control of referenced contracts are secure and as intended.
+
+// @audit-info Ensure that the use of block.timestamp does not introduce vulnerabilities or critical dependencies.
+		lastUpkeepTimeRewardsEmitters = block.timestamp;
+
+	// @audit-info Ensure that all functions that require protection have nonReentrant modifier.
+
+	try this.step1() {}
+		 // @audit-info Ensure proper off-chain monitoring and handling of UpkeepError events.
+
+		catch (bytes memory error) { emit UpkeepError("Step 1", error); }
+
+   // @audit medium Consider an upgradable pattern like proxies if the protocol anticipates future upgrades.
+
+	// @audit medium Add necessary logical checks and input validations to prevent unexpected behavior.
+
+		uint256 daoWETH = pools.depositedUserBalance( address(dao), weth );
+        
+		// @audit-info Ensure safe math is used or Solidity version 0.8.x's inherent overflow checks are relied upon.
+
+		return daoWETH * daoConfig.upkeepRewardPercent() / 100;
+
+
+ManagedWallet.sol
+
+            // @audit medium : block.timestamp can be manipulated , Miners have some ability to manipulate this value, which could potentially allow them to execute the function before the intended time.
+            block.timestamp >= activeTimelock,
+            "Timelock not yet completed"
+
+
+CollateralAndLiquidity.sol 
+
+	// @audit : medium function is using the modifier ensureNotExpired(deadline) that is vulnerable to timestamp manipulation
+	function depositCollateralAndIncreaseShare( uint256 maxAmountWBTC, uint256 maxAmountWETH, uint256 minLiquidityReceived, uint256 deadline, bool useZapping ) external nonReentrant ensureNotExpired(deadline)  returns (uint256 addedAmountWBTC, uint256 addedAmountWETH, uint256 addedLiquidity)
+
+	// @audit : medium function is using the modifier ensureNotExpired(deadline) that is vulnerable to timestamp manipulation
+    function withdrawCollateralAndClaim( uint256 collateralToWithdraw, uint256 minReclaimedWBTC, uint256 minReclaimedWETH, uint256 deadline ) external nonReentrant ensureNotExpired(deadline) returns (uint256 reclaimedWBTC, uint256 reclaimedWETH)
+
+// @audit-info : why dont this smart contract using the allowance functionality to check the allowance of the user ? 
+    function borrowUSDS( uint256 amountBorrowed ) external nonReentrant
+	
+    // @audit low: The borrowUSDS function does not check or limit the rate of borrowing. 
+        // Rapid changes in collateral value could make this a vector for exploitation.
+	
+	// @audit medium: Consider implementing a function to handle rounding errors for small amounts of USDS.
+        // Small discrepancies can lead to issues in accounting.
+		require( userShareForPool( msg.sender, collateralPoolID ) > 0, "User does not have any collateral" );
+
+	function liquidateUser( address wallet ) external nonReentrant
+		{
+		
+		// @audit high: Ensure proper access control for liquidation calls. 
+        // Malicious actors could potentially exploit the function without proper checks.
+        }
+
+		// @audit low : The function could result in high gas costs due to the loop. 
+        // Consider implementing pagination or gas optimization strategies.
+
+  // @audit-info : Ensure all external calls to other contracts are secure and handle possible reentrancy attacks.
+
+
+Pool.sol
+
+	//@audit medium: Consider the implications of renouncing ownership, especially in terms of upgradeability and emergency response.
+	function setContracts( IDAO _dao, ICollateralAndLiquidity _collateralAndLiquidity ) external onlyOwner
+		{
+		dao = _dao;
+		collateralAndLiquidity = _collateralAndLiquidity;
+
+		// setContracts can only be called once
+		renounceOwnership();
+		}
+
+	  //@audit low: Check for underflow/overflow possibilities, although SafeMath or similar checks might be in place.
+ 
+	function _addLiquidity( bytes32 poolID, uint256 maxAmount0, uint256 maxAmount1, uint256 totalLiquidity ) internal returns(uint256 addedAmount0, uint256 addedAmount1, uint256 addedLiquidity)
+		{
+		PoolReserves storage reserves = _poolReserves[poolID];
+		uint256 reserve0 = reserves.reserve0;
+		uint256 reserve1 = reserves.reserve1;
+
+		// If either reserve is zero then consider the pool to be empty and that the added liquidity will become the initial token ratio
+		if ( ( reserve0 == 0 ) || ( reserve1 == 0 ) )
+			{
+			// Update the reserves
+			reserves.reserve0 += uint128(maxAmount0);
+			reserves.reserve1 += uint128(maxAmount1);
+
+			// Default liquidity will be the addition of both maxAmounts in case one of them is much smaller (has smaller decimals)
+			return ( maxAmount0, maxAmount1, (maxAmount0 + maxAmount1) );
+			}
+
+		// Add liquidity to the pool proportional to the current existing token reserves in the pool.
+		// First, try the proportional amount of tokenB for the given maxAmountA
+		uint256 proportionalB = ( maxAmount0 * reserve1 ) / reserve0;
+
+		// proportionalB too large for the specified maxAmountB?
+		if ( proportionalB > maxAmount1 )
+			{
+			// Use maxAmountB and a proportional amount for tokenA instead
+			addedAmount0 = ( maxAmount1 * reserve0 ) / reserve1;
+			addedAmount1 = maxAmount1;
+			}
+		else
+			{
+			addedAmount0 = maxAmount0;
+			addedAmount1 = proportionalB;
+			}
+
+		// Update the reserves
+		reserves.reserve0 += uint128(addedAmount0);
+		reserves.reserve1 += uint128(addedAmount1);
+
+		// Determine the amount of liquidity that will be given to the user to reflect their share of the total collateralAndLiquidity.
+		// Use whichever added amount was larger to maintain better numeric resolution.
+		// Rounded down in favor of the protocol.
+		if ( addedAmount0 > addedAmount1)
+			addedLiquidity = (totalLiquidity * addedAmount0) / reserve0;
+		else
+			addedLiquidity = (totalLiquidity * addedAmount1) / reserve1;
+		}
+
+	function addLiquidity( IERC20 tokenA, IERC20 tokenB, uint256 maxAmountA, uint256 maxAmountB, uint256 minLiquidityReceived, uint256 totalLiquidity ) external nonReentrant returns (uint256 addedAmountA, uint256 addedAmountB, uint256 addedLiquidity)
+		{
+		require( msg.sender == address(collateralAndLiquidity), "Pools.addLiquidity is only callable from the CollateralAndLiquidity contract" );
+		//@audit medium: Ensure that `exchangeIsLive` cannot be bypassed or manipulated, as it controls critical functionality.
+		require( exchangeIsLive, "The exchange is not yet live" );
+
+
+	  //@audit high: Functions like `removeLiquidity` must be carefully reviewed to prevent unauthorized withdrawal or proportion miscalculations.
+
+	function removeLiquidity( IERC20 tokenA, IERC20 tokenB, uint256 liquidityToRemove, uint256 minReclaimedA, uint256 minReclaimedB, uint256 totalLiquidity ) external nonReentrant returns (uint256 reclaimedA, uint256 reclaimedB)
+
+   //@audit medium: Proper validation of user deposits and transfers is crucial to prevent unauthorized access or token loss.
+  
+	function withdraw( IERC20 token, uint256 amount ) external nonReentrant
+
+
+
+Proposals.sol
+
+			//@audit medium: Consider edge cases where totalStaked might be 0, leading to division by zero errors.
+			uint256 totalStaked = staking.totalShares(PoolUtils.STAKED_SALT);
+			uint256 requiredXSalt = ( totalStaked * daoConfig.requiredProposalPercentStakeTimes1000() ) / ( 100 * 1000 );
+
+       //@audit medium: Access control checks, ensure only DAO can finalize ballots.
+	function markBallotAsFinalized( uint256 ballotID ) external nonReentrant
+		
+	//@audit medium: Function `proposeSendSALT` should ensure that the amount sent is within reasonable limits and the contract's balance.
+
+	function proposeSendSALT( address wallet, uint256 amount, string calldata description ) external nonReentrant returns (uint256 ballotID)
+		{
+		require( wallet != address(0), "Cannot send SALT to address(0)" );
+
+ //@audit medium: In `castVote`, ensure that the votes are properly counted, and users can't vote more than their stake or change their votes in an unintended way.
+
+	function castVote( uint256 ballotID, Vote vote ) external nonReentrant
+
+//@audit medium: The function `requiredQuorumForBallotType` needs careful consideration to ensure the quorum requirements are fair and prevent governance attacks.
+
+	function requiredQuorumForBallotType( BallotType ballotType ) public view returns (uint256 requiredQuorum)
+		{
+		// The quorum will be specified as a percentage of the total amount of SALT staked
+		uint256 totalStaked = staking.totalShares( PoolUtils.STAKED_SALT );
+		require( totalStaked != 0, "SALT staked cannot be zero to determine quorum" );
+
+		if ( ballotType == BallotType.PARAMETER )
+	
+ //@audit low: In `ballotIsApproved` and similar functions, assumptions are made about the quorum being checked elsewhere. Ensure this is always the case.
+ 
+	function ballotIsApproved( uint256 ballotID ) external view returns (bool)
+		{
+		mapping(Vote=>uint256) storage votes = _votesCastForBallot[ballotID];
+
+		return votes[Vote.YES] > votes[Vote.NO];
+		}
+
+
+
+StakingRewards.sol
+
+Highs : 
+
+1. The functions addSALTRewards, _increaseUserShare, and _decreaseUserShare are internal and meant to be called by inheriting contracts or within this contract.
+
+2. Reentrancy in claimAllRewards and addSALTRewards:
+
+Functions claimAllRewards and addSALTRewards are transferring tokens (potentially calling external contracts), which can be a risk for reentrancy attacks. 
+
+Medium Severity Issues
+
+1. Division Before Multiplication in Reward Calculation:
+In userRewardForPool, the reward is calculated as (totalRewards[poolID] * user.userShare) / totalShares[poolID]
+
+2. Potential Precision Loss:
+In _increaseUserShare, Math.ceilDiv is used to calculate virtualRewardsToAdd. This might lead to precision loss and potential manipulation by users to gain more rewards.
+
+3. Unchecked External Calls:
+
+Calls to external contracts (salt.safeTransfer, salt.safeTransferFrom) are not checked for return values
+
+4. Gas Optimization in Loops:
+In functions like claimAllRewards, addSALTRewards, totalSharesForPools, etc., loops are used to iterate over arrays.
+
+
+
+
+SaltRewards.sol
+		//@audit high: The contract gives max approval to stakingRewardsEmitter and liquidityRewardsEmitter. Ensure these contracts are secure and audited to prevent misuse of funds.
+
+		salt.approve( address(stakingRewardsEmitter), type(uint256).max );
+		salt.approve( address(liquidityRewardsEmitter), type(uint256).max );
+
+//@audit medium: Ensure correct and fair distribution of liquidity rewards based on each pool's contribution to profits. Watch out for rounding errors in calculations.
+	function _sendLiquidityRewards( uint256 liquidityRewardsAmount, uint256 directRewardsForSaltUSDS, bytes32[] memory poolIDs, uint256[] memory profitsForPools, uint256 totalProfits ) internal
+		
+		    //@audit medium: Ensure that the division of liquidityBootstrapAmount is fair and accounts for potential division rounding errors.
+	function _sendInitialLiquidityRewards( uint256 liquidityBootstrapAmount, bytes32[] memory poolIDs ) internal
+
+	//@audit high: Ensure proper access control for the sendInitialSaltRewards function. Only the InitialDistribution contract should call this function.
+	function sendInitialSaltRewards( uint256 liquidityBootstrapAmount, bytes32[] calldata poolIDs ) external
+
+    //@audit high: Ensure proper access control for performUpkeep function. Only the Upkeep contract should call this function. Validate inputs thoroughly to prevent errors or manipulation.
+	function performUpkeep( bytes32[] calldata poolIDs, uint256[] calldata profitsForPools ) external
+

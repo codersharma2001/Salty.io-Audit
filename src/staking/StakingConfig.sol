@@ -16,6 +16,7 @@ contract StakingConfig is IStakingConfig, Ownable
     // The minimum number of weeks for an unstake request at which point minUnstakePercent of the original staked SALT is reclaimable.
 	// Range: 1 to 12 with an adjustment of 1
 	uint256 public minUnstakeWeeks = 2;  // minUnstakePercent returned for unstaking this number of weeks
+    // @audit : storing small valvue sometimes leds to precision loss , which can be dangerous
 
 	// The maximum number of weeks for an unstake request at which point 100% of the original staked SALT is reclaimable.
 	// Range: 20 to 108 with an adjustment of 8
@@ -30,7 +31,8 @@ contract StakingConfig is IStakingConfig, Ownable
 	// Range: 15 minutes to 6 hours with an adjustment of 15 minutes
 	uint256 public modificationCooldown = 1 hours;
 
-
+     // @audit : giving owner too many powers , owner can change the parameters of the contract , which can be dangerous
+     
 	function changeMinUnstakeWeeks(bool increase) external onlyOwner
         {
         if (increase)

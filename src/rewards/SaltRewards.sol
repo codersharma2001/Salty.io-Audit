@@ -38,6 +38,8 @@ contract SaltRewards is ISaltRewards
 
 		// Gas saving approval for rewards distribution on performUpkeep().
 		// This contract only has a temporary SALT balance during the performUpkeep transaction.
+		//@audit high: The contract gives max approval to stakingRewardsEmitter and liquidityRewardsEmitter. Ensure these contracts are secure and audited to prevent misuse of funds.
+
 		salt.approve( address(stakingRewardsEmitter), type(uint256).max );
 		salt.approve( address(liquidityRewardsEmitter), type(uint256).max );
 		}
@@ -55,6 +57,7 @@ contract SaltRewards is ISaltRewards
 
 	// Transfer SALT rewards to pools in the liquidityRewardsEmitter proportional to each pool's share in generating recent arbitrage profits.
 	// Also send the direct rewards specified by the DAO to the SALT/USDS pool.
+	//@audit medium: Ensure correct and fair distribution of liquidity rewards based on each pool's contribution to profits. Watch out for rounding errors in calculations.
 	function _sendLiquidityRewards( uint256 liquidityRewardsAmount, uint256 directRewardsForSaltUSDS, bytes32[] memory poolIDs, uint256[] memory profitsForPools, uint256 totalProfits ) internal
 		{
 		require( poolIDs.length == profitsForPools.length, "Incompatible array lengths" );
@@ -77,7 +80,7 @@ contract SaltRewards is ISaltRewards
 		liquidityRewardsEmitter.addSALTRewards( addedRewards );
 		}
 
-
+    //@audit medium: Ensure that the division of liquidityBootstrapAmount is fair and accounts for potential division rounding errors.
 	function _sendInitialLiquidityRewards( uint256 liquidityBootstrapAmount, bytes32[] memory poolIDs ) internal
 		{
 		// Divide the liquidityBootstrapAmount evenly across all the initial pools
@@ -103,6 +106,8 @@ contract SaltRewards is ISaltRewards
 
 
     // Sends an expected 5 million SALT to the liquidityRewardsEmitter (evenly divided amongst the pools) and 3 million SALT to the stakingRewardsEmitter.
+	
+	//@audit high: Ensure proper access control for the sendInitialSaltRewards function. Only the InitialDistribution contract should call this function.
 	function sendInitialSaltRewards( uint256 liquidityBootstrapAmount, bytes32[] calldata poolIDs ) external
 		{
 		require( msg.sender == address(exchangeConfig.initialDistribution()), "SaltRewards.sendInitialRewards is only callable from the InitialDistribution contract" );
@@ -113,7 +118,7 @@ contract SaltRewards is ISaltRewards
 		_sendInitialStakingRewards( salt.balanceOf(address(this)) );
 		}
 
-
+     //@audit high: Ensure proper access control for performUpkeep function. Only the Upkeep contract should call this function. Validate inputs thoroughly to prevent errors or manipulation.
 	function performUpkeep( bytes32[] calldata poolIDs, uint256[] calldata profitsForPools ) external
 		{
 		require( msg.sender == address(exchangeConfig.upkeep()), "SaltRewards.performUpkeep is only callable from the Upkeep contract" );

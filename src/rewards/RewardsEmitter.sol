@@ -47,6 +47,7 @@ contract RewardsEmitter is IRewardsEmitter, ReentrancyGuard
 		salt = _exchangeConfig.salt();
 
 		// Save gas for later reward distribution by approving in advance
+		// @audit low : Limit the approval to the amount of rewards that will be distributed in the future
 		salt.approve(address(stakingRewards), type(uint256).max);
 		}
 
@@ -54,9 +55,13 @@ contract RewardsEmitter is IRewardsEmitter, ReentrancyGuard
 	// Add SALT rewards for later distribution to the specified whitelisted pools.
 	// Specified SALT rewards are transfered from the sender.
 	// Requires that rewarded pools are whitelisted.
+
+	// @audit medium : Implement access control to restrict the function to only the owner , otehrwise  any one can call it and manipulate the pending rewards . 
 	function addSALTRewards( AddedReward[] calldata addedRewards ) external nonReentrant
 		{
 		uint256 sum = 0;
+
+		// @audit-info : Consider optimizing loops or implmeneting the gas-effficient pattern 
 		for( uint256 i = 0; i < addedRewards.length; i++ )
 			{
 			AddedReward memory addedReward = addedRewards[i];
@@ -113,11 +118,14 @@ contract RewardsEmitter is IRewardsEmitter, ReentrancyGuard
 		uint256 denominatorMult = 1 days * 100000; // simplification of numberSecondsInOneDay * (100 percent) * 1000
 
 		uint256 sum = 0;
+
+		// @audit medium : Consider setting a limit on the number of pools or implement a more gas efficient mechenism 
 		for( uint256 i = 0; i < poolIDs.length; i++ )
 			{
 			bytes32 poolID = poolIDs[i];
 
 			// Each pool will send a percentage of the pending rewards based on the time elapsed since the last send
+			// @audit medium : Consider using the safe math or solidity buil-in overflow checks to mitigate this risk
 			uint256 amountToAddForPool = ( pendingRewards[poolID] * numeratorMult ) / denominatorMult;
 
 			// Reduce the pending rewards so they are not sent again

@@ -13,7 +13,9 @@ import "../pools/PoolUtils.sol";
 contract CoreSaltyFeed is IPriceFeed
     {
     IPools immutable public pools;
+    
 
+	// info - thats great to define the immutable variables in the constructor
 	IERC20 immutable public wbtc;
 	IERC20 immutable public weth;
 	IERC20 immutable public usds;
@@ -31,12 +33,15 @@ contract CoreSaltyFeed is IPriceFeed
 	// Returns zero for an invalid price
 	function getPriceBTC() external view returns (uint256)
 		{
+			// q external call ? 
+			// info - no reentrancy risk here
         (uint256 reservesWBTC, uint256 reservesUSDS) = pools.getPoolReserves(wbtc, usds);
 
 		if ( ( reservesWBTC < PoolUtils.DUST ) || ( reservesUSDS < PoolUtils.DUST ) )
 			return 0;
 
 		// reservesWBTC has 8 decimals, keep the 18 decimals of reservesUSDS
+		// @audit-info : magic number are bad practice here 
 		return ( reservesUSDS * 10**8 ) / reservesWBTC;
 		}
 

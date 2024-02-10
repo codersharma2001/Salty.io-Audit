@@ -21,6 +21,8 @@ contract DAOConfig is IDAOConfig, Ownable
 	// Note that new tokens will only be able to be whitelisted (even if the vote is favorable) once the DAO SALT balance is at least this amount.
 	// The DAO receives 25 million SALT (linearly over 10 years - about 48k per week) as well as default ~23% of the Protocol Owned Liquidity SALT rewards.
 	// Range: 50k ether to 500k ether with an adjustment of 50k ether
+
+	// @audit medium : variable should be declared as immutable , as it is not changed after deployment , and it is not a constant , why didnt you made protocol smart contract upgradable ? 
 	uint256 public bootstrappingRewards = 200000 ether;
 
 	// For rewards distributed to the DAO, the percentage of SALT that is burned with the remaining staying in the DAO for later use.
@@ -37,6 +39,7 @@ contract DAOConfig is IDAOConfig, Ownable
 	// Contract updating quorum: = 3 * baseBallotQuorum
 	// Website updating quorum: = 3 * baseBallotQuorum
 	// Range: 5% to 20% with an adjustment of 1%
+
 	uint256 public baseBallotQuorumPercentTimes1000 = 10 * 1000; // Default 10% of the total amount of SALT staked with a 1000x multiplier
 
 	// How many days minimum a ballot has to exist before it can be taken action on.
@@ -60,8 +63,7 @@ contract DAOConfig is IDAOConfig, Ownable
 	// Range: 1% to 10% with an adjustment of 1%
 	uint256 public upkeepRewardPercent = 5;
 
-
-	function changeBootstrappingRewards(bool increase) external onlyOwner
+    function changeBootstrappingRewards(bool increase) external onlyOwner
 		{
         if (increase)
         	{

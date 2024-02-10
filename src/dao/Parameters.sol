@@ -9,6 +9,9 @@ import "../pools/interfaces/IPoolsConfig.sol";
 import "./interfaces/IDAOConfig.sol";
 
 
+// Comprehensive enum definition for parameters
+// @audit-info : Provide detailed documentation for each parameter in the `ParameterTypes` enum to ensure clarity and understanding of their impact.
+
 abstract contract Parameters
     {
 	enum ParameterTypes {
@@ -54,6 +57,10 @@ abstract contract Parameters
 
 
 	// If the parameter has an invalid parameterType then the call is a no-op
+	
+    // @audit high : The _executeParameterChange function modifies critical system parameters but does not implement explicit access control . 
+    // @audit medium: Ensure thorough testing and code reviews to mitigate the risk of typos or misconfigurations.
+
 	function _executeParameterChange( ParameterTypes parameterType, bool increase, IPoolsConfig poolsConfig, IStakingConfig stakingConfig, IRewardsConfig rewardsConfig, IStableConfig stableConfig, IDAOConfig daoConfig, IPriceAggregator priceAggregator ) internal
 		{
 		// PoolsConfig

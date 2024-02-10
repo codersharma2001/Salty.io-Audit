@@ -27,6 +27,7 @@ abstract contract Liquidity is ILiquidity, StakingRewards
 	// The poolID of WBTC/WETH collateral - which should not be withdrawable from this contract directly.
     bytes32 immutable public collateralPoolID;
 
+   // q : where is natspec ? 
 
 	constructor( IPools _pools, IExchangeConfig _exchangeConfig, IPoolsConfig _poolsConfig, IStakingConfig _stakingConfig )
 		StakingRewards( _exchangeConfig, _poolsConfig, _stakingConfig )
@@ -36,7 +37,8 @@ abstract contract Liquidity is ILiquidity, StakingRewards
 		collateralPoolID = PoolUtils._poolID( exchangeConfig.wbtc(), exchangeConfig.weth() );
 		}
 
-
+    // q : where is the natspec ? , assume that this modifier is used to check if the tx is expired or not
+	// @audit medium : if the if the liquidity provider can manipulate the timestamp , he can bypass this check , makes the deadline useless for him 
 	modifier ensureNotExpired(uint deadline)
 		{
 		require(block.timestamp <= deadline, "TX EXPIRED");
@@ -93,6 +95,7 @@ abstract contract Liquidity is ILiquidity, StakingRewards
 			(maxAmountA, maxAmountB) = _dualZapInLiquidity(tokenA, tokenB, maxAmountA, maxAmountB );
 
 		// Approve the liquidity to add
+		// @audit medium : Consider limited amount of token or approval , that is needed for the operation , and revoking it afterwards 
 		tokenA.approve( address(pools), maxAmountA );
 		tokenB.approve( address(pools), maxAmountB );
 
@@ -107,6 +110,7 @@ abstract contract Liquidity is ILiquidity, StakingRewards
 		_increaseUserShare( msg.sender, poolID, addedLiquidity, true );
 
 		// If any of the user's tokens were not used, then send them back
+		// @audit info : Ensure that the behavior of returning unused token is well documented and understood 
 		if ( addedAmountA < maxAmountA )
 			tokenA.safeTransfer( msg.sender, maxAmountA - addedAmountA );
 
@@ -143,6 +147,14 @@ abstract contract Liquidity is ILiquidity, StakingRewards
 	// Public wrapper for adding liquidity which prevents direct deposits to the collateral pool.
 	// CollateralAndLiquidity::depositCollateralAndIncreaseShare bypasses this and calls _depositLiquidityAndIncreaseShare directly.
 	// Requires exchange access for the sending wallet.
+
+	// Lack of input validation for tokens and amounts
+// @audit medium: Validate inputs to prevent issues related to zero addresses, zero amounts, or invalid tokens.
+// require(address(tokenA) != address(0) && address(tokenB) != address(0), "Invalid token addresses");
+// require(maxAmountA > 0 && maxAmountB > 0, "Invalid deposit amounts");
+
+
+    // @audit low : Review all external call although using the reentrant modifier is great practice , but , review and ensure the complience with CEI pattern 
 	function depositLiquidityAndIncreaseShare( IERC20 tokenA, IERC20 tokenB, uint256 maxAmountA, uint256 maxAmountB, uint256 minLiquidityReceived, uint256 deadline, bool useZapping ) external nonReentrant ensureNotExpired(deadline) returns (uint256 addedAmountA, uint256 addedAmountB, uint256 addedLiquidity)
 		{
 		require( PoolUtils._poolID( tokenA, tokenB ) != collateralPoolID, "Stablecoin collateral cannot be deposited via Liquidity.depositLiquidityAndIncreaseShare" );

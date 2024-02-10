@@ -17,6 +17,8 @@ contract StableConfig is IStableConfig, Ownable
 
 	// The reward (in collateraLP) that a user receives for instigating the liquidation process - as a percentage of the amount of collateralLP that is liquidated.
 	// Range: 5 to 10 with an adjustment of 1
+
+    // @audit low : make these variable immutable , as they are not changed after deployment , and it is not a constant , why didnt you made protocol smart contract upgradable ? 
     uint256 public rewardPercentForCallingLiquidation = 5;
 
 	// The maximum reward value (in USD) that a user receives for instigating the liquidation process.
@@ -50,7 +52,8 @@ contract StableConfig is IStableConfig, Ownable
             {
 			// Don't increase rewardPercentForCallingLiquidation if the remainingRatio after the rewards would be less than 105% - to ensure that the position will be liquidatable for more than the originally borrowed USDS amount (assume reasonable market volatility)
 			uint256 remainingRatioAfterReward = minimumCollateralRatioPercent - rewardPercentForCallingLiquidation - 1;
-
+            
+            // @audit-info : magic numbers , use constants
             if (remainingRatioAfterReward >= 105 && rewardPercentForCallingLiquidation < 10)
                 rewardPercentForCallingLiquidation += 1;
             }

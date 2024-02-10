@@ -55,7 +55,9 @@ contract CoreUniswapFeed is IPriceFeed
 
         // Get the historical tick data using the observe() function
          (int56[] memory tickCumulatives, ) = pool.observe(secondsAgo);
+         
 
+// @audit medium: Consider using SafeMath or solidity 0.8.x built-in overflow checks to mitigate these risks		 // @info : use the safemath library to avoid this issue
 		int24 tick = int24((tickCumulatives[1] - tickCumulatives[0]) / int56(uint56(twapInterval)));
 		uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick( tick );
 		uint256 p = FullMath.mulDiv(sqrtPriceX96, sqrtPriceX96, FixedPoint96.Q96 );
@@ -64,6 +66,9 @@ contract CoreUniswapFeed is IPriceFeed
 		uint8 decimals1 = ( ERC20( pool.token1() ) ).decimals();
 
 		if ( decimals1 > decimals0 )
+
+		// @audit-info : magics numbers are used 
+
 			return FullMath.mulDiv( 10 ** ( 18 + decimals1 - decimals0 ), FixedPoint96.Q96, p );
 
 		if ( decimals0 > decimals1 )
@@ -76,9 +81,15 @@ contract CoreUniswapFeed is IPriceFeed
 	// Wrap the _getUniswapTwapWei function in a public function that includes a try/catch.
 	// Returns zero on any type of failure.
 	// virtual - really just needed for the derived unit tests
+
+	// Lack of input validation can lead to unexpected behavior or errors
+// @audit low: Validate inputs, especially external ones, to ensure they meet the expected format or constraints.
+// require(address(pool) != address(0), "Invalid pool address");
+
     function getUniswapTwapWei( IUniswapV3Pool pool, uint256 twapInterval ) public virtual view returns (uint256)
 		{
 		// Initialize return value to 0
+		// @audit low : The contract uses try/catch block , ensure the this error handling s comprehensive and doesn't supress important errors that should be handled
 		uint256 twap = 0;
 		try this._getUniswapTwapWei(pool, twapInterval) returns (uint256 result)
 			{

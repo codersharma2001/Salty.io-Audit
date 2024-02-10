@@ -42,6 +42,8 @@ contract PoolsConfig is IPoolsConfig, Ownable
 
 
 	// Whitelist a given pair of tokens
+
+	// @audit high : whitelist pool is using updateArbitrageIndicies() is gas intensive public function before emitter leds to re-entrancy attack .  
 	function whitelistPool( IPools pools, IERC20 tokenA, IERC20 tokenB ) external onlyOwner
 		{
 		require( _whitelist.length() < maximumWhitelistedPools, "Maximum number of whitelisted pools already reached" );

@@ -13,8 +13,8 @@ abstract contract ArbitrageSearch
 	ISalt immutable public salt;
 
 	// Used to estimate the point just to the right of the midpoint
-   	uint256 constant public MIDPOINT_PRECISION = 0.001e18; // .001 ETH precision for arb search
-
+   	uint256 constant public MIDPOINT_PRECISION = 0.001e18; // .001 ETH precision for arb search  
+	 // @audit-info : thats really bad , using too small precision can lead to precision loss , which can be dangerous
 
     constructor( IExchangeConfig _exchangeConfig )
     	{
@@ -62,6 +62,12 @@ abstract contract ArbitrageSearch
 	// Used as a substitution for the overly complex derivative in order to determine which direction the optimal arbitrage amountIn is more likely to be.
 	function _rightMoreProfitable( uint256 midpoint, uint256 reservesA0, uint256 reservesA1, uint256 reservesB0, uint256 reservesB1, uint256 reservesC0, uint256 reservesC1 ) internal pure returns (bool rightMoreProfitable)
 		{
+		
+		// @audit-info : this function is safe from the underflow or overflow , but need to deal with the edge cases like : 
+		// 1 . midpoint value is used in a division operation, which could potentially lead to an overflow if it's too large.
+		// 2 . amountOut could potentially cause an overflow if the reserve values are extremely large
+		// 3 . The profitMidpoint and profitRightOfMidpoint calculations involve subtraction and could potentially underflow if amountOut is less than midpoint
+
 		unchecked
 			{
 			// Calculate the AMM output of the midpoint
@@ -112,6 +118,8 @@ abstract contract ArbitrageSearch
 			uint256 rightPoint = swapAmountInValueInETH + (swapAmountInValueInETH >> 2); // 100% + 25% of swapAmountInValueInETH
 
 			// Cost is about 492 gas per loop iteration
+
+			// @audit-low : Magic Numbers , need to be replaced with constants
 			for( uint256 i = 0; i < 8; i++ )
 				{
 				uint256 midpoint = (leftPoint + rightPoint) >> 1;

@@ -86,6 +86,7 @@ contract Proposals is IProposals, ReentrancyGuard
 		if ( msg.sender != address(exchangeConfig.dao() ) )
 			{
 			// Make sure that the sender has the minimum amount of xSALT required to make the proposal
+			//@audit medium: Consider edge cases where totalStaked might be 0, leading to division by zero errors.
 			uint256 totalStaked = staking.totalShares(PoolUtils.STAKED_SALT);
 			uint256 requiredXSalt = ( totalStaked * daoConfig.requiredProposalPercentStakeTimes1000() ) / ( 100 * 1000 );
 
@@ -126,7 +127,7 @@ contract Proposals is IProposals, ReentrancyGuard
 		return _possiblyCreateProposal( ballotName, ballotType, address1, 0, string1, description );
 		}
 
-
+        //@audit medium: Access control checks, ensure only DAO can finalize ballots.
 	function markBallotAsFinalized( uint256 ballotID ) external nonReentrant
 		{
 		require( msg.sender == address(exchangeConfig.dao()), "Only the DAO can mark a ballot as finalized" );
@@ -151,13 +152,13 @@ contract Proposals is IProposals, ReentrancyGuard
 		emit BallotFinalized(ballotID);
 		}
 
-
-	function proposeParameterBallot( uint256 parameterType, string calldata description ) external nonReentrant returns (uint256 ballotID)
+  	function proposeParameterBallot( uint256 parameterType, string calldata description ) external nonReentrant returns (uint256 ballotID)
 		{
 		string memory ballotName = string.concat("parameter:", Strings.toString(parameterType) );
 		return _possiblyCreateProposal( ballotName, BallotType.PARAMETER, address(0), parameterType, "", description );
 		}
 
+  //@audit high: Ensure validation of token contracts and addresses in `proposeTokenWhitelisting` to prevent adding malicious or erroneous tokens.
 
 	function proposeTokenWhitelisting( IERC20 token, string calldata tokenIconURL, string calldata description ) external nonReentrant returns (uint256 _ballotID)
 		{
@@ -176,7 +177,7 @@ contract Proposals is IProposals, ReentrancyGuard
 		return ballotID;
 		}
 
-
+    //@audit high: Ensure validation of token contracts and addresses in `proposeTokenWhitelisting` to prevent adding malicious or erroneous tokens.
 	function proposeTokenUnwhitelisting( IERC20 token, string calldata tokenIconURL, string calldata description ) external nonReentrant returns (uint256 ballotID)
 		{
 		require( poolsConfig.tokenHasBeenWhitelisted(token, exchangeConfig.wbtc(), exchangeConfig.weth()), "Can only unwhitelist a whitelisted token" );
@@ -193,6 +194,8 @@ contract Proposals is IProposals, ReentrancyGuard
 
 	// Proposes sending a specified amount of SALT to a wallet or contract.
 	// Only one sendSALT Ballot can be open at a time and the sending limit is 5% of the current SALT balance of the DAO.
+	//@audit medium: Function `proposeSendSALT` should ensure that the amount sent is within reasonable limits and the contract's balance.
+
 	function proposeSendSALT( address wallet, uint256 amount, string calldata description ) external nonReentrant returns (uint256 ballotID)
 		{
 		require( wallet != address(0), "Cannot send SALT to address(0)" );
@@ -256,6 +259,8 @@ contract Proposals is IProposals, ReentrancyGuard
 
 
 	// Cast a vote on an open ballot
+	 //@audit medium: In `castVote`, ensure that the votes are properly counted, and users can't vote more than their stake or change their votes in an unintended way.
+
 	function castVote( uint256 ballotID, Vote vote ) external nonReentrant
 		{
 		Ballot memory ballot = ballots[ballotID];
@@ -314,6 +319,8 @@ contract Proposals is IProposals, ReentrancyGuard
 
 	// The required quorum is normally a default 10% of the amount of SALT staked.
 	// There is though a minimum of 0.50% of SALT.totalSupply (in the case that the amount of staked SALT is low - at launch for instance).
+	//@audit medium: The function `requiredQuorumForBallotType` needs careful consideration to ensure the quorum requirements are fair and prevent governance attacks.
+
 	function requiredQuorumForBallotType( BallotType ballotType ) public view returns (uint256 requiredQuorum)
 		{
 		// The quorum will be specified as a percentage of the total amount of SALT staked
@@ -352,6 +359,8 @@ contract Proposals is IProposals, ReentrancyGuard
 
 
 	// Assumes that the quorum has been checked elsewhere
+	 //@audit low: In `ballotIsApproved` and similar functions, assumptions are made about the quorum being checked elsewhere. Ensure this is always the case.
+ 
 	function ballotIsApproved( uint256 ballotID ) external view returns (bool)
 		{
 		mapping(Vote=>uint256) storage votes = _votesCastForBallot[ballotID];
